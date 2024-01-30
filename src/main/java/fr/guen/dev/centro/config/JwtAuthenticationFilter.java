@@ -31,13 +31,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     @NonNull HttpServletResponse response,
                                     @NonNull FilterChain filterChain) throws ServletException, IOException
     {
-        final String authHeader = request.getHeader("Authorization");
-        if(authHeader == null || !authHeader.startsWith("Bearer ")){
+        //On récupère le JWT dans le cookie ou dans l'en-tête Authorization
+        String jwt = jwtService.getJwtFromCookie(request);
+        final String authorizationHeader = request.getHeader("Authorization");
+
+        if(jwt == null &&
+                (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) ||
+                request.getRequestURI().contains("/auth")
+        ){
             filterChain.doFilter(request, response);
             return;
         }
 
-        final String jwt = authHeader.substring(7); // after "Bearer "
+        //Si le jwt n'est pas dans le cookie mais dans l'en-tête Authorization
+        if(jwt == null && authorizationHeader.startsWith("Bearer ")) {
+            jwt = authorizationHeader.substring(7); // after "Bearer "
+        }
+
         final String userEmail =jwtService.extractUserName(jwt);
 
         if(StringUtils.isNotEmpty(userEmail)

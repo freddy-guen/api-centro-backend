@@ -10,10 +10,15 @@ import fr.guen.dev.centro.repository.RefreshTokenRepository;
 import fr.guen.dev.centro.repository.UserRepository;
 import fr.guen.dev.centro.services.interfaces.JwtService;
 import fr.guen.dev.centro.services.interfaces.RefreshTokenService;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.WebUtils;
 
 import java.time.Instant;
 import java.util.Base64;
@@ -30,6 +35,9 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 
     @Value("${application.security.jwt.refresh-token.expiration}")
     private long refreshExpiration;
+
+    @Value("${application.security.jwt.refresh-token.cookie-name}")
+    private String refreshCookieName;
 
     @Override
     public RefreshToken createRefreshToken(Long userId) {
@@ -70,4 +78,36 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
                 .tokenType(TokenType.BEARER.name())
                 .build();
     }
+
+    @Override
+    public ResponseCookie generateRefreshTokenCookie(String token) {
+        return ResponseCookie.from(refreshCookieName, token)
+                .path("/")
+                .maxAge(refreshExpiration / 1000) //15 jour en secondes
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("Strict")
+                .build();
+    }
+
+    @Override
+    public String getRefreshTokenFromCookie(HttpServletRequest request) {
+        Cookie cookie = WebUtils.getCookie(request, refreshCookieName);
+
+        return cookie != null ? cookie.getValue() : StringUtils.EMPTY;
+    }
+
+    @Override
+    public void deleteByToken(String token) {
+        refreshTokenRepository.findByToken(token).ifPresent(refreshTokenRepository::delete);
+    }
+
+    @Override
+    public ResponseCookie getCleanRefreshTokenCookie() {
+        return ResponseCookie.from(refreshCookieName, StringUtils.EMPTY)
+                .path("/")
+                .build();
+    }
+
+
 }
